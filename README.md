@@ -1,6 +1,15 @@
-# Clavik Vault Go SDK
+<div align="center">
 
-Official Go client library for the [Clavik Vault REST API](https://clavik.io).
+# Vault Go SDK
+
+**Official Go client for the [Clavik Vault API](https://clavik.io)**
+
+[![Go Reference](https://pkg.go.dev/badge/github.com/clavik-io/vault-go.svg)](https://pkg.go.dev/github.com/clavik-io/vault-go)
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+
+</div>
+
+---
 
 ## Requirements
 
@@ -10,7 +19,7 @@ Official Go client library for the [Clavik Vault REST API](https://clavik.io).
 ## Installation
 
 ```bash
-go get github.com/innacy/clavik-go
+go get github.com/clavik-io/vault-go
 ```
 
 ## Quick Start
@@ -24,7 +33,7 @@ import (
 	"context"
 	"log"
 
-	vault "github.com/innacy/clavik-go"
+	vault "github.com/clavik-io/vault-go"
 )
 
 func main() {
@@ -244,14 +253,22 @@ if errors.As(err, &apiErr) {
 
 | Error | HTTP Status |
 | --- | --- |
+| `ErrValidation` | 400 |
 | `ErrUnauthorized` | 401 |
 | `ErrForbidden` | 403 |
 | `ErrNotFound` | 404 |
-| `ErrValidation` | 400 |
 | `ErrServerError` | 500+ |
 
 Transient server and network errors are automatically retried with exponential backoff.
 
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feat/my-feature`)
+3. Follow [conventional commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, etc.)
+4. Add tests for new functionality
+5. Open a pull request
+
 ## License
 
-Copyright Clavik. See the repository license for details.
+[GPL-3.0](https://www.gnu.org/licenses/gpl-3.0) — see the organisation [LICENSE](https://github.com/clavik-io/.github/blob/main/LICENSE) for details.
