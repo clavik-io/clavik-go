@@ -1,10 +1,10 @@
 <div align="center">
 
-# Vault Go SDK
+# clavik-go
 
-**Official Go client for the [Clavik Vault API](https://clavik.io)**
+**Official Go SDK for the [Clavik Vault API](https://clavik.io)**
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/clavik-io/vault-go.svg)](https://pkg.go.dev/github.com/clavik-io/vault-go)
+[![Go Reference](https://pkg.go.dev/badge/github.com/clavik-io/clavik-go.svg)](https://pkg.go.dev/github.com/clavik-io/clavik-go)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
 </div>
@@ -19,7 +19,7 @@
 ## Installation
 
 ```bash
-go get github.com/clavik-io/vault-go
+go get github.com/clavik-io/clavik-go
 ```
 
 ## Quick Start
@@ -33,7 +33,7 @@ import (
 	"context"
 	"log"
 
-	vault "github.com/clavik-io/vault-go"
+	vault "github.com/clavik-io/clavik-go"
 )
 
 func main() {

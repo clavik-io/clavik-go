@@ -8,7 +8,7 @@ import (
 	"log"
 	"os"
 
-	vault "github.com/clavik-io/vault-go"
+	vault "github.com/clavik-io/clavik-go"
 )
 
 func main() {
