@@ -9,7 +9,9 @@ import (
 // Option configures a Client.
 type Option func(*Client) error
 
-// WithEndpoint sets the API base URL (default: https://api.clavik.io/api/v1).
+// WithEndpoint sets the Clavik host to talk to (default: DefaultEndpoint,
+// https://portal.clavik.de). The host alone and the host with /api/v1 both
+// work; the API base is host/api/v1 and health is host/health.
 func WithEndpoint(endpoint string) Option {
 	return func(c *Client) error {
 		c.baseURL = deriveBaseURL(endpoint)

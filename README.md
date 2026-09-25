@@ -40,7 +40,7 @@ func main() {
 	ctx := context.Background()
 
 	client, err := vault.NewClient(
-		vault.WithEndpoint("https://api.clavik.io/api/v1"),
+		vault.WithEndpoint("https://portal.clavik.de"),
 		vault.WithAPIKey("vk_live_..."),
 		vault.WithTenant("my-account"),
 	)
@@ -70,7 +70,7 @@ Use `WithBearerToken` when you already have a Cidaas OAuth2 token obtained throu
 
 ```go
 client, err := vault.NewClient(
-	vault.WithEndpoint("https://api.clavik.io/api/v1"),
+	vault.WithEndpoint("https://portal.clavik.de"),
 	vault.WithBearerToken("eyJhbGciOi..."),
 	vault.WithTenant("my-account"),
 )
@@ -82,7 +82,7 @@ Use `WithOAuth2` to let the SDK handle the full client-credentials flow, includi
 
 ```go
 client, err := vault.NewClient(
-	vault.WithEndpoint("https://api.clavik.io/api/v1"),
+	vault.WithEndpoint("https://portal.clavik.de"),
 	vault.WithOAuth2("client-id", "client-secret", "https://auth.cidaas.io/token"),
 	vault.WithTenant("my-account"),
 )
@@ -232,7 +232,7 @@ health, err := client.Health().Check(ctx)
 
 | Option | Description | Default |
 | --- | --- | --- |
-| `WithEndpoint(url)` | API base URL | `https://api.clavik.io/api/v1` |
+| `WithEndpoint(url)` | Clavik host; `/api/v1` is added if missing | `https://portal.clavik.de` |
 | `WithHealthEndpoint(url)` | Override health check URL | derived from endpoint |
 | `WithAPIKey(key)` | Static API key authentication | — |
 | `WithBearerToken(token)` | Pre-existing bearer token | — |
