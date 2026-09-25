@@ -73,9 +73,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           before=$(git tag --points-at HEAD --list 'v*')
+          # The preset stays on 9.x. From 10.x it renders only with
+          # conventional-changelog-writer 9, and semantic-release 25's
+          # release-notes-generator 14 still loads writer 8: generateNotes
+          # then fails with "requires conventional-changelog-writer@9".
+          # Move to 10.x only together with a release-notes-generator that
+          # depends on writer 9.
           npx --yes \
             -p semantic-release@25.0.9 \
-            -p conventional-changelog-conventionalcommits@10.4.0 \
+            -p conventional-changelog-conventionalcommits@9.3.1 \
             semantic-release
           after=$(git tag --points-at HEAD --list 'v*')
           # Only a tag this run created. A tag someone pushed by hand onto
