@@ -2,6 +2,8 @@ package vault
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 )
@@ -81,10 +83,38 @@ func (s *AccessService) ListAPIKeys(ctx context.Context) ([]APIKey, error) {
 }
 
 // CreateAPIKey creates an API key. The full key is returned once in the response.
+//
+// The API returns the key's plaintext BESIDE the envelope's "data", not inside
+// it:
+//
+//	{"success":true, "status":201, "data":{"id":...,"key_prefix":...}, "api_key":"vault_..."}
+//
+// so the envelope is decoded here in full. Unwrapping it to "data", as every
+// other call does, discards the one field this call exists for.
 func (s *AccessService) CreateAPIKey(ctx context.Context, req CreateAPIKeyRequest) (*APIKeyWithSecret, error) {
-	var key APIKeyWithSecret
-	if err := s.client.do(ctx, http.MethodPost, buildPath("access", "api-keys"), req, &key); err != nil {
+	var raw []byte
+	if err := s.client.do(ctx, http.MethodPost, buildPath("access", "api-keys"), req, &raw); err != nil {
 		return nil, err
+	}
+	var envelope struct {
+		Data   json.RawMessage `json:"data"`
+		APIKey string          `json:"api_key"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return nil, fmt.Errorf("vault: decode response: %w", err)
+	}
+	var key APIKeyWithSecret
+	if len(envelope.Data) > 0 {
+		if err := json.Unmarshal(envelope.Data, &key.APIKey); err != nil {
+			return nil, fmt.Errorf("vault: decode response: %w", err)
+		}
+	}
+	key.Key = envelope.APIKey
+	// The plaintext is shown once and cannot be fetched again. A key without
+	// it is unusable, so say so rather than hand back an empty Key. The key
+	// was created, so the error names its id for the caller to revoke it.
+	if key.Key == "" {
+		return nil, fmt.Errorf("vault: create api key: response carried no key (created key id %q)", key.ID)
 	}
 	return &key, nil
 }
