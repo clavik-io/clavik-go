@@ -65,6 +65,10 @@ type oauth2TokenResponse struct {
 	ExpiresIn   int    `json:"expires_in"`
 }
 
+// DefaultEndpoint is the hosted Clavik service, used when WithEndpoint is not
+// given. The API is served under /api/v1 and health at /health on this host.
+const DefaultEndpoint = "https://portal.clavik.de"
+
 const (
 	defaultTimeout    = 30 * time.Second
 	defaultMaxRetries = 3
@@ -140,6 +144,16 @@ func NewClient(opts ...Option) (*Client, error) {
 	for _, opt := range opts {
 		if err := opt(c); err != nil {
 			return nil, err
+		}
+	}
+
+	// No WithEndpoint means the hosted Clavik service. Without this the base
+	// URL stayed empty and every request failed, while the docs promised a
+	// default. WithHealthEndpoint on its own is still honoured.
+	if c.baseURL == "" {
+		c.baseURL = deriveBaseURL(DefaultEndpoint)
+		if c.healthURL == "" {
+			c.healthURL = deriveHealthURL(DefaultEndpoint)
 		}
 	}
 
