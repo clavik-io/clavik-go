@@ -347,6 +347,9 @@ type VerifyRequest struct {
 	Signature string `json:"signature"`
 }
 
+// VerifyResponse is returned by KeysService.Verify for a signature that
+// verified. Valid is always true on a returned response; a mismatch is
+// reported as an error matching ErrValidation instead.
 type VerifyResponse struct {
 	Valid bool `json:"success"`
 }

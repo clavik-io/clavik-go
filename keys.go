@@ -110,10 +110,21 @@ func (s *KeysService) Sign(ctx context.Context, req SignRequest) (*SignResponse,
 }
 
 // Verify verifies a signature against data.
+//
+// A nil error means the signature is valid, and the returned response has
+// Valid set to true. A signature that does not match is reported as an error
+// matching ErrValidation, not as a response with Valid false; any other error
+// means the verification could not be performed.
 func (s *KeysService) Verify(ctx context.Context, req VerifyRequest) (*VerifyResponse, error) {
 	var resp VerifyResponse
 	if err := s.client.do(ctx, http.MethodPost, buildPath("keys", "verify"), req, &resp); err != nil {
 		return nil, err
 	}
+	// The API gives its verdict through the HTTP status — a mismatch is a
+	// 400 and never reaches here — so a successful response IS a valid
+	// signature. Set Valid from that, not from the body: the envelope's inner
+	// "data" is an empty nested response whose own "success" is false, and
+	// decoding Valid from it reported every valid signature as invalid (#1).
+	resp.Valid = true
 	return &resp, nil
 }
