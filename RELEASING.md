@@ -83,6 +83,17 @@ go list -m github.com/clavik-io/clavik-go@latest
 ## Pinned versions
 
 The actions are pinned by commit SHA and the npm packages by exact version:
-`semantic-release@25.0.9` and `conventional-changelog-conventionalcommits@10.4.0`.
+`semantic-release@25.0.9` and `conventional-changelog-conventionalcommits@9.3.1`.
 semantic-release's own plugins resolve within the ranges that version
 declares. Upgrade deliberately, and let the next release prove it.
+
+The preset and semantic-release have to be upgraded together.
+`conventional-changelog-conventionalcommits` 10.x renders only with
+`conventional-changelog-writer` 9. semantic-release 25.0.9 ships
+`@semantic-release/release-notes-generator` 14, which loads writer 8, so a 10.x
+preset fails at "generateNotes" before anything is tagged. This is what failed
+the first release run.
+
+To test an upgrade locally, run a dry run with the real `.releaserc.json`.
+Do not override plugins with `--plugins`: that drops the preset options and
+tests the default preset instead.
