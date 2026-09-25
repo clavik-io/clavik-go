@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log"
 	"os"
+	"strings"
 
 	vault "github.com/clavik-io/clavik-go"
 )
@@ -17,16 +18,12 @@ func main() {
 	token := os.Getenv("VAULT_BEARER_TOKEN")
 	tenant := os.Getenv("VAULT_TENANT_KEY")
 	endpoint := os.Getenv("VAULT_ENDPOINT")
-	if token == "" || tenant == "" {
-		log.Fatalf("set VAULT_BEARER_TOKEN and VAULT_TENANT_KEY")
-	}
-	if endpoint == "" {
-		endpoint = "https://api.clavik.io"
-	}
+	isAPIKey := strings.HasPrefix(token, "vault_")
 
 	client, err := vault.NewClient(
 		vault.WithEndpoint(endpoint),
-		vault.WithBearerToken(token),
+		// vault.WithBearerToken(token),
+		vault.WithAPIKey(token),
 		vault.WithTenant(tenant),
 	)
 	if err != nil {
@@ -72,23 +69,28 @@ func main() {
 
 	gotFolder, err := client.Folders().Get(ctx, credsFolder.ID)
 	must(err, "get folder")
-	log.Printf("[folders] get name=%s\n", gotFolder.Name)
+	log.Printf("[folders] get folder name=%s\n", gotFolder.Name)
 
-	// Folder permissions
-	permsResult, err := client.Folders().GrantPermission(ctx, credsFolder.ID, vault.GrantPermissionRequest{
-		UserID: "demo-user-id",
-		Roles:  []vault.FolderPermissionRole{vault.FolderPermissionRoleRead, vault.FolderPermissionRoleWrite},
-	})
-	must(err, "grant folder permission")
-	log.Printf("[folders] granted permissions, folder now has %d permission entries\n", len(permsResult))
+	// Folder permissions — PUT/DELETE hit the hand-written FolderPermissionMiddleware,
+	// which is blocked for API key authentication.
+	if !isAPIKey {
+		permsResult, err := client.Folders().GrantPermission(ctx, credsFolder.ID, vault.GrantPermissionRequest{
+			UserID: "demo-user-id",
+			Roles:  []vault.FolderPermissionRole{vault.FolderPermissionRoleRead, vault.FolderPermissionRoleWrite},
+		})
+		must(err, "grant folder permission")
+		log.Printf("[folders] granted permissions, folder now has %d permission entries\n", len(permsResult))
 
-	perms, err := client.Folders().ListPermissions(ctx, credsFolder.ID)
-	must(err, "list folder permissions")
-	log.Printf("[folders] permissions count=%d\n", len(perms))
+		perms, err := client.Folders().ListPermissions(ctx, credsFolder.ID)
+		must(err, "list folder permissions")
+		log.Printf("[folders] permissions count=%d\n", len(perms))
 
-	err = client.Folders().RemovePermission(ctx, credsFolder.ID, "demo-user-id")
-	must(err, "remove folder permission")
-	log.Printf("[folders] removed permission")
+		err = client.Folders().RemovePermission(ctx, credsFolder.ID, "demo-user-id")
+		must(err, "remove folder permission")
+		log.Printf("[folders] removed permission")
+	} else {
+		log.Printf("[folders] skipped folder permissions (not available to API keys)")
+	}
 
 	// ---------------------------------------------------------------
 	// Secrets
@@ -128,13 +130,17 @@ func main() {
 	must(err, "update secret")
 	log.Printf("[secrets] updated\n")
 
-	versions, err := client.Secrets().ListVersions(ctx, secret.ID)
-	must(err, "list secret versions")
-	log.Printf("[secrets] versions count=%d\n", len(versions))
+	// Secret versions — hits the hand-written SecretVersionMiddleware.
+	if !isAPIKey {
+		versions, err := client.Secrets().ListVersions(ctx, secret.ID)
+		must(err, "list secret versions")
+		log.Printf("[secrets] versions count=%d\n", len(versions))
 
-	if len(versions) > 0 {
-		log.Printf("[secrets] latest version=%d created_at=%s\n", versions[0].Version, versions[0].CreatedAt)
-
+		if len(versions) > 0 {
+			log.Printf("[secrets] latest version=%d created_at=%s\n", versions[0].Version, versions[0].CreatedAt)
+		}
+	} else {
+		log.Printf("[secrets] skipped versions (not available to API keys)")
 	}
 
 	// ---------------------------------------------------------------
@@ -173,13 +179,17 @@ func main() {
 	must(err, "rotate key")
 	log.Printf("[keys] rotated version=%s\n", rotated.Version)
 
-	keyVersions, err := client.Keys().ListVersions(ctx, signingKey.ID)
-	must(err, "list key versions")
-	log.Printf("[keys] versions count=%d\n", len(keyVersions))
+	// Key versions — hits the hand-written KeyVersionMiddleware.
+	if !isAPIKey {
+		keyVersions, err := client.Keys().ListVersions(ctx, signingKey.ID)
+		must(err, "list key versions")
+		log.Printf("[keys] versions count=%d\n", len(keyVersions))
 
-	if len(keyVersions) > 0 {
-		log.Printf("[keys] latest version=%d disabled=%v\n", keyVersions[0].Version, keyVersions[0].Disabled)
-
+		if len(keyVersions) > 0 {
+			log.Printf("[keys] latest version=%d disabled=%v\n", keyVersions[0].Version, keyVersions[0].Disabled)
+		}
+	} else {
+		log.Printf("[keys] skipped versions (not available to API keys)")
 	}
 
 	// Sign & verify
@@ -273,29 +283,75 @@ func main() {
 	must(err, "get security policy")
 	log.Printf("[policies] allowed=%v forbidden=%v\n", policy.AllowedAlgorithms, policy.ForbiddenAlgorithms)
 
-	updatedPolicy, err := client.Policies().Set(ctx, vault.SecurityPolicy{
-		DefaultPolicy: &vault.SecurityRequirements{
-			SecurityLevel: vault.SecurityLevelHigh,
-		},
-		AllowedAlgorithms:   []string{"AES-256-GCM", "ES256", "ES384"},
-		ForbiddenAlgorithms: []string{"MD5", "SHA1"},
-	})
-	must(err, "set security policy")
-	log.Printf("[policies] updated allowed=%v\n", updatedPolicy.AllowedAlgorithms)
+	// SetPolicy is blocked for API key authentication.
+	if !isAPIKey {
+		updatedPolicy, err := client.Policies().Set(ctx, vault.SecurityPolicy{
+			DefaultPolicy: &vault.SecurityRequirements{
+				SecurityLevel: vault.SecurityLevelHigh,
+			},
+			AllowedAlgorithms:   []string{"AES-256-GCM", "ES256", "ES384"},
+			ForbiddenAlgorithms: []string{"MD5", "SHA1"},
+		})
+		must(err, "set security policy")
+		log.Printf("[policies] updated allowed=%v\n", updatedPolicy.AllowedAlgorithms)
+	} else {
+		log.Printf("[policies] skipped set policy (not available to API keys)")
+	}
 
 	// ---------------------------------------------------------------
 	// Access — Policies, Principals, API Keys, Users
 	// ---------------------------------------------------------------
 
-	// Grant access
-	accessPolicy, err := client.Access().GrantAccess(ctx, vault.GrantAccessRequest{
-		ResourceType: vault.ResourceTypeKey,
-		ResourceID:   signingKey.ID,
-		PrincipalID:  "demo-service-account",
-		Permissions:  []vault.Permission{vault.PermissionRead, vault.PermissionWrite},
-	})
-	must(err, "grant access")
-	log.Printf("[access] granted policy id=%s\n", accessPolicy.ID)
+	// GrantAccess, UpdateAccessPolicy, RevokeAccess, CreateApiKey, and
+	// RevokeApiKey are blocked for API key authentication.
+	if !isAPIKey {
+		// Grant access
+		accessPolicy, err := client.Access().GrantAccess(ctx, vault.GrantAccessRequest{
+			ResourceType: vault.ResourceTypeKey,
+			ResourceID:   signingKey.ID,
+			PrincipalID:  "demo-service-account",
+			Permissions:  []vault.Permission{vault.PermissionRead, vault.PermissionWrite},
+		})
+		must(err, "grant access")
+		log.Printf("[access] granted policy id=%s\n", accessPolicy.ID)
+
+		// Get policy
+		gotPolicy, err := client.Access().GetPolicy(ctx, accessPolicy.ID)
+		must(err, "get access policy")
+		log.Printf("[access] policy permissions=%v\n", gotPolicy.Permissions)
+
+		// Update policy
+		updatedAccess, err := client.Access().UpdatePolicy(ctx, accessPolicy.ID, vault.UpdatePolicyRequest{
+			Permissions: []vault.Permission{vault.PermissionRead},
+		})
+		must(err, "update access policy")
+		log.Printf("[access] updated permissions=%v\n", updatedAccess.Permissions)
+
+		// API keys
+		apiKey, err := client.Access().CreateAPIKey(ctx, vault.CreateAPIKeyRequest{
+			Name:   "demo-ci-key",
+			Scopes: []string{"vault:cred_read", "vault:cred_write", "vault:cred_manage"},
+		})
+		must(err, "create API key")
+		log.Printf("[access] created API key name=%s prefix=%s\n", apiKey.Name, apiKey.KeyPrefix)
+
+		apiKeys, err := client.Access().ListAPIKeys(ctx)
+		must(err, "list API keys")
+		log.Printf("[access] API keys count=%d\n", len(apiKeys))
+
+		err = client.Access().RevokeAPIKey(ctx, apiKey.ID)
+		must(err, "revoke API key")
+		log.Printf("[access] revoked API key")
+
+		// Revoke access policy
+		err = client.Access().RevokeAccess(ctx, accessPolicy.ID)
+		must(err, "revoke access")
+		log.Printf("[access] revoked access policy")
+	} else {
+		log.Printf("[access] skipped grant/update/revoke access, create/revoke API key (not available to API keys)")
+	}
+
+	// Read-only access operations — allowed for API keys.
 
 	// List policies
 	policies, err := client.Access().ListPolicies(ctx, vault.ListPoliciesOptions{
@@ -305,49 +361,25 @@ func main() {
 	must(err, "list access policies")
 	log.Printf("[access] policies count=%d\n", len(policies))
 
-	// Get policy
-	gotPolicy, err := client.Access().GetPolicy(ctx, accessPolicy.ID)
-	must(err, "get access policy")
-	log.Printf("[access] policy permissions=%v\n", gotPolicy.Permissions)
-
-	// Update policy
-	updatedAccess, err := client.Access().UpdatePolicy(ctx, accessPolicy.ID, vault.UpdatePolicyRequest{
-		Permissions: []vault.Permission{vault.PermissionRead},
-	})
-	must(err, "update access policy")
-	log.Printf("[access] updated permissions=%v\n", updatedAccess.Permissions)
-
 	// List principals
 	principals, err := client.Access().ListPrincipals(ctx, vault.ListPrincipalsOptions{})
 	must(err, "list principals")
 	log.Printf("[access] principals count=%d\n", len(principals))
 
-	// API keys
-	apiKey, err := client.Access().CreateAPIKey(ctx, vault.CreateAPIKeyRequest{
-		Name: "demo-ci-key",
-	})
-	must(err, "create API key")
-	log.Printf("[access] created API key name=%s prefix=%s\n", apiKey.Name, apiKey.KeyPrefix)
-
 	apiKeys, err := client.Access().ListAPIKeys(ctx)
 	must(err, "list API keys")
 	log.Printf("[access] API keys count=%d\n", len(apiKeys))
 
-	err = client.Access().RevokeAPIKey(ctx, apiKey.ID)
-	must(err, "revoke API key")
-	log.Printf("[access] revoked API key")
-
-	// Users
-	users, err := client.Access().ListUsers(ctx, vault.ListUsersOptions{
-		Status: vault.UserStatusActive,
-	})
-	must(err, "list users")
-	log.Printf("[access] active users count=%d\n", len(users))
-
-	// Revoke access policy
-	err = client.Access().RevokeAccess(ctx, accessPolicy.ID)
-	must(err, "revoke access")
-	log.Printf("[access] revoked access policy")
+	// Users — hits the hand-written GroupHTTPHandler, not the gRPC gateway.
+	if !isAPIKey {
+		users, err := client.Access().ListUsers(ctx, vault.ListUsersOptions{
+			Status: vault.UserStatusActive,
+		})
+		must(err, "list users")
+		log.Printf("[access] active users count=%d\n", len(users))
+	} else {
+		log.Printf("[access] skipped list users (not available to API keys)")
+	}
 
 	// ---------------------------------------------------------------
 	// Activity
@@ -371,9 +403,13 @@ func main() {
 	// ---------------------------------------------------------------
 	// Compliance
 	// ---------------------------------------------------------------
-	complianceReport, err := client.Compliance().GetReport(ctx)
-	must(err, "compliance report")
-	log.Printf("[compliance] report=%s\n", summarizeJSON(complianceReport))
+	if !isAPIKey {
+		complianceReport, err := client.Compliance().GetReport(ctx)
+		must(err, "compliance report")
+		log.Printf("[compliance] report=%s\n", summarizeJSON(complianceReport))
+	} else {
+		log.Printf("[compliance] report (not available to API keys)")
+	}
 
 	// ---------------------------------------------------------------
 	// Cleanup

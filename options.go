@@ -27,9 +27,10 @@ func WithHealthEndpoint(url string) Option {
 }
 
 // WithAPIKey configures static API key authentication.
+// API keys are sent via the X-API-Key header
 func WithAPIKey(apiKey string) Option {
 	return func(c *Client) error {
-		c.auth = &staticTokenAuth{token: apiKey}
+		c.auth = &apiKeyAuth{apiKey: apiKey}
 		return nil
 	}
 }
@@ -99,9 +100,21 @@ func WithRetryBaseDelay(delay time.Duration) Option {
 	}
 }
 
+func normalizeEndpoint(endpoint string) string {
+	endpoint = strings.TrimSpace(endpoint)
+	endpoint = strings.TrimRight(endpoint, "/")
+
+	if !strings.Contains(endpoint, "://") {
+		endpoint = "https://" + endpoint
+	}
+
+	return endpoint
+}
+
 func deriveBaseURL(endpoint string) string {
 	const suffix = "/api/v1"
-	endpoint = strings.TrimRight(endpoint, "/")
+
+	endpoint = normalizeEndpoint(endpoint)
 
 	if strings.HasSuffix(endpoint, suffix) {
 		return endpoint
@@ -112,7 +125,8 @@ func deriveBaseURL(endpoint string) string {
 
 func deriveHealthURL(endpoint string) string {
 	const suffix = "/api/v1"
-	endpoint = strings.TrimRight(endpoint, "/")
+
+	endpoint = normalizeEndpoint(endpoint)
 
 	if strings.HasSuffix(endpoint, suffix) {
 		return strings.TrimSuffix(endpoint, suffix) + "/health"

@@ -48,6 +48,14 @@ func (a *staticTokenAuth) Token(_ context.Context) (string, error) {
 	return a.token, nil
 }
 
+type apiKeyAuth struct {
+	apiKey string
+}
+
+func (a *apiKeyAuth) Token(_ context.Context) (string, error) {
+	return a.apiKey, nil
+}
+
 type oauth2Auth struct {
 	clientID     string
 	clientSecret string
@@ -234,11 +242,16 @@ func (c *Client) do(ctx context.Context, method, path string, body any, result a
 		}
 
 		if !ro.skipAuth {
-			token, err := c.auth.Token(ctx)
-			if err != nil {
-				return err
+			switch c.auth.(type) {
+			case *apiKeyAuth:
+				req.Header.Set("x-access-token", c.auth.(*apiKeyAuth).apiKey)
+			default:
+				token, err := c.auth.Token(ctx)
+				if err != nil {
+					return err
+				}
+				req.Header.Set("Authorization", "Bearer "+token)
 			}
-			req.Header.Set("Authorization", "Bearer "+token)
 			req.Header.Set("X-Tenant-Key", c.tenant)
 		}
 

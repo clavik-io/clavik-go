@@ -459,8 +459,10 @@ type APIKey struct {
 }
 
 type CreateAPIKeyRequest struct {
-	Name      string `json:"name"`
-	ExpiresAt string `json:"expires_at,omitempty"`
+	Name      string            `json:"name"`
+	ExpiresAt string            `json:"expires_at,omitempty"`
+	Scopes    []string          `json:"scopes"`
+	Metadata  map[string]string `json:"metadata,omitempty"`
 }
 
 type APIKeyWithSecret struct {
