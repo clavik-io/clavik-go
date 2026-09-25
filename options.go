@@ -27,10 +27,15 @@ func WithHealthEndpoint(url string) Option {
 }
 
 // WithAPIKey configures static API key authentication.
-// API keys are sent via the X-API-Key header
+//
+// The key is sent as "Authorization: Bearer <key>", the one header every
+// Clavik route reads. Some routes also accept X-Access-Token, but the
+// hand-written ones (compliance report, access users, key and secret
+// versions, folder permission changes) read Authorization only, and refuse
+// a key sent any other way with 401.
 func WithAPIKey(apiKey string) Option {
 	return func(c *Client) error {
-		c.auth = &apiKeyAuth{apiKey: apiKey}
+		c.auth = &staticTokenAuth{token: apiKey}
 		return nil
 	}
 }
