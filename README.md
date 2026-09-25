@@ -162,13 +162,21 @@ sig, err := client.Keys().Sign(ctx, vault.SignRequest{
 	Data:  "base64-encoded-payload",
 })
 
-// Verify a signature
-result, err := client.Keys().Verify(ctx, vault.VerifyRequest{
+// Verify a signature. A nil error means it verified; a mismatch is an
+// error matching vault.ErrValidation, and the response is nil.
+_, err = client.Keys().Verify(ctx, vault.VerifyRequest{
 	KeyID:     key.ID,
 	Data:      "base64-encoded-payload",
 	Signature: sig.Data,
 })
-log.Printf("valid: %v", result.Valid)
+switch {
+case err == nil:
+	log.Print("signature is valid")
+case errors.Is(err, vault.ErrValidation):
+	log.Print("signature does not match")
+default:
+	log.Fatal(err) // the verification could not be performed
+}
 
 // Encrypt / decrypt
 ct, err := client.Keys().Encrypt(ctx, vault.EncryptRequest{
