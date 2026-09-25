@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The oldest Go the module claims to support, read from go.mod so
+          # the two cannot drift apart.
+          - name: go.mod minimum
+            go-version-file: go.mod
+          - name: latest stable
+            go-version: stable
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ matrix.go-version }}
+          go-version-file: ${{ matrix.go-version-file }}
+          # The SDK has no dependencies, so there is nothing to cache.
+          cache: false
+      - name: gofmt
+        # gofmt's output can differ between Go versions; check it once.
+        if: matrix.go-version == 'stable'
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::not gofmt-formatted:"; echo "$unformatted"; exit 1
+          fi
+      - run: go vet ./...
+      - run: go test -race -count=1 ./...
+      - name: example builds against this checkout
+        # example/ is its own module with a replace directive onto ../, so
+        # it is not covered by ./... above.
+        working-directory: example
+        run: go vet ./... && go build ./...
+
+  release:
+    # Every push to main that passes the tests is a release candidate.
+    # semantic-release decides from the commits whether it is a release.
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the tag, create the GitHub release
+    concurrency:
+      group: release
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # semantic-release reads every commit since the last tag
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+      - name: semantic-release
+        id: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          before=$(git tag --points-at HEAD --list 'v*')
+          npx --yes \
+            -p semantic-release@25.0.9 \
+            -p conventional-changelog-conventionalcommits@10.4.0 \
+            semantic-release
+          after=$(git tag --points-at HEAD --list 'v*')
+          # Only a tag this run created. A tag someone pushed by hand onto
+          # the same commit must never be announced below: the proxy caches
+          # every version it is shown, permanently.
+          created=$(comm -13 <(echo "$before" | sort) <(echo "$after" | sort))
+          echo "tag=${created}" >> "$GITHUB_OUTPUT"
+      - name: announce the version to the Go module proxy
+        # A Go module is published by its tag alone. Asking the proxy for the
+        # new version makes it fetch and cache it now, so it is installable
+        # and appears on pkg.go.dev without waiting for a first user.
+        # Non-fatal: by this point the release is already public.
+        if: steps.release.outputs.tag != ''
+        continue-on-error: true
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: curl -fsS "https://proxy.golang.org/github.com/clavik-io/clavik-go/@v/${TAG}.info"
